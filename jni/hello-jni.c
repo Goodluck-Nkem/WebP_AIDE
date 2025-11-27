@@ -18,77 +18,6 @@ typedef struct {
 	// int canvas_width, canvas_height;
 } WebPAnim;
 
-static void* handle_sharpyuv = NULL;
-static void* handle_webp     = NULL;
-static void* handle_demux    = NULL;
-
-// webp demux symbols
-static WebPDemuxer* (*FUNC_WebPDemuxInternal)(const WebPData*, int, WebPDemuxState*, int) = NULL;
-static void (*FUNC_WebPDemuxDelete)(WebPDemuxer*) = NULL;
-static uint32_t (*FUNC_WebPDemuxGetI)(const WebPDemuxer*, WebPFormatFeature) = NULL;
-static int (*FUNC_WebPDemuxGetFrame)(const WebPDemuxer*, int, WebPIterator*) = NULL;
-static int (*FUNC_WebPDemuxNextFrame)(WebPIterator*) = NULL;
-static void (*FUNC_WebPDemuxReleaseIterator)(WebPIterator*) = NULL;
-
-static int (*FUNC_WebPInitDecoderConfigInternal)(WebPDecoderConfig*, int) = NULL;
-static VP8StatusCode (*FUNC_WebPDecode)(const uint8_t*, size_t, WebPDecoderConfig*) = NULL;
-
-// more demux symbols
-static int (*FUNC_WebPAnimDecoderOptionsInitInternal)(WebPAnimDecoderOptions*, int) = NULL;
-static void (*FUNC_WebPAnimDecoderDelete)(WebPAnimDecoder* dec) = NULL;
-static int (*FUNC_WebPAnimDecoderGetInfo)(const WebPAnimDecoder* dec, WebPAnimInfo* info) = NULL;
-static WebPAnimDecoder* (*FUNC_WebPAnimDecoderNewInternal)(const WebPData*, 
-							const WebPAnimDecoderOptions*, int) = NULL; 
-
-// webp decode symbol
-static uint8_t* (*FUNC_WebPDecodeRGBAInto)(const uint8_t*, size_t, uint8_t*, size_t, int) = NULL;
-
-JNIEXPORT jboolean JNICALL
-Java_com_mycompany_myndkapp_HelloJni_nativeInit(JNIEnv* env, jclass clazz,
-        jstring jsh, jstring jw, jstring jd)
-{
-    const char* psh = (*env)->GetStringUTFChars(env, jsh, 0);
-    const char* pw  = (*env)->GetStringUTFChars(env, jw, 0);
-    const char* pd  = (*env)->GetStringUTFChars(env, jd, 0);
-
-    handle_sharpyuv = dlopen(psh, RTLD_NOW);
-    handle_webp     = dlopen(pw, RTLD_NOW);
-    handle_demux    = dlopen(pd, RTLD_NOW);
-
-    (*env)->ReleaseStringUTFChars(env, jsh, psh);
-    (*env)->ReleaseStringUTFChars(env, jw, pw);
-    (*env)->ReleaseStringUTFChars(env, jd, pd);
-
-    if (!handle_sharpyuv || !handle_webp || !handle_demux) return JNI_FALSE;
-
-    // DEMUX
-    FUNC_WebPDemuxInternal = dlsym(handle_demux, "WebPDemuxInternal");
-    FUNC_WebPDemuxDelete   = dlsym(handle_demux, "WebPDemuxDelete");
-    FUNC_WebPDemuxGetI     = dlsym(handle_demux, "WebPDemuxGetI");
-    FUNC_WebPDemuxGetFrame = dlsym(handle_demux, "WebPDemuxGetFrame");
-    FUNC_WebPDemuxNextFrame = dlsym(handle_demux, "WebPDemuxNextFrame");
-    FUNC_WebPDemuxReleaseIterator = dlsym(handle_demux, "WebPDemuxReleaseIterator");
-	
-	FUNC_WebPInitDecoderConfigInternal = dlsym(handle_demux, "WebPInitDecoderConfigInternal");
-	FUNC_WebPDecode = dlsym(handle_demux, "WebPDecode");
-	
-	FUNC_WebPAnimDecoderOptionsInitInternal = dlsym(handle_demux, "WebPAnimDecoderOptionsInitInternal");
-	FUNC_WebPAnimDecoderNewInternal = dlsym(handle_demux, "WebPAnimDecoderNewInternal");
-	FUNC_WebPAnimDecoderGetInfo = dlsym(handle_demux, "WebPAnimDecoderGetInfo");
-	FUNC_WebPAnimDecoderDelete = dlsym(handle_demux, "WebPAnimDecoderDelete");
-
-    // DECODE
-    FUNC_WebPDecodeRGBAInto = dlsym(handle_webp, "WebPDecodeRGBAInto");
-
-    return JNI_TRUE;
-}
-JNIEXPORT void JNICALL
-Java_com_mycompany_myndkapp_HelloJni_nativeFini(JNIEnv* env, jclass clazz){
-	dlclose(handle_demux);
-	dlclose(handle_webp);
-	dlclose(handle_sharpyuv);
-}
-
 JNIEXPORT jlong JNICALL
 Java_com_mycompany_myndkapp_HelloJni_nativeOpen(JNIEnv* env, jclass clazz,
                                             jbyteArray bytes)
@@ -101,20 +30,20 @@ Java_com_mycompany_myndkapp_HelloJni_nativeOpen(JNIEnv* env, jclass clazz,
 
     (*env)->GetByteArrayRegion(env, bytes, 0, size, (jbyte*)anim->data.bytes);
 
-    anim->demux = FUNC_WebPDemuxInternal(&anim->data, 0, NULL, WEBP_DEMUX_ABI_VERSION);
+    anim->demux = WebPDemuxInternal(&anim->data, 0, NULL, WEBP_DEMUX_ABI_VERSION);
 	
     // -------- Prepare demuxer --------
 	/*
 
     WebPAnimDecoderOptions dec_opts;
-    FUNC_WebPAnimDecoderOptionsInit(&dec_opts);
+    WebPAnimDecoderOptionsInit(&dec_opts);
 
-    anim->anim_decoder = FUNC_WebPAnimDecoderNew(&anim->data, &dec_opts);
+    anim->anim_decoder = WebPAnimDecoderNew(&anim->data, &dec_opts);
 
     WebPAnimInfo info;
     if (anim_decoder) {
-    	if (!FUNC_WebPAnimDecoderGetInfo(anim_decoder, &info)) {
-        	FUNC_WebPAnimDecoderDelete(anim->anim_decoder);
+    	if (!WebPAnimDecoderGetInfo(anim_decoder, &info)) {
+        	WebPAnimDecoderDelete(anim->anim_decoder);
         	free(anim->data.bytes);
 			anim->data.bytes = NULL;
     	}
@@ -133,7 +62,7 @@ JNIEXPORT jint JNICALL
 Java_com_mycompany_myndkapp_HelloJni_nativeGetFrameCount(JNIEnv* env, jclass clazz,
                                                      jlong handle) {
     WebPAnim* a = (WebPAnim*)handle;
-    return FUNC_WebPDemuxGetI(a->demux, WEBP_FF_FRAME_COUNT);
+    return WebPDemuxGetI(a->demux, WEBP_FF_FRAME_COUNT);
 }
 
 JNIEXPORT jint JNICALL
@@ -143,11 +72,11 @@ Java_com_mycompany_myndkapp_HelloJni_nativeGetFrameDelay(JNIEnv* env, jclass cla
     WebPAnim* a = (WebPAnim*)handle;
 
     WebPIterator iter;
-    if (!FUNC_WebPDemuxGetFrame(a->demux, frame, &iter))
+    if (!WebPDemuxGetFrame(a->demux, frame, &iter))
         return -1;
 
     int delay = iter.duration;
-    FUNC_WebPDemuxReleaseIterator(&iter);
+    WebPDemuxReleaseIterator(&iter);
     return delay;
 }
 
@@ -158,14 +87,14 @@ Java_com_mycompany_myndkapp_HelloJni_nativeGetFrameDimension(JNIEnv* env, jclass
     WebPAnim* a = (WebPAnim*)handle;
 
     WebPIterator iter;
-    if (!FUNC_WebPDemuxGetFrame(a->demux, frame, &iter))
+    if (!WebPDemuxGetFrame(a->demux, frame, &iter))
         return NULL;
 
 	jintArray array = (*env)->NewIntArray(env, 2);
 	int c_array[2] = {iter.width, iter.height};
 	(*env)->SetIntArrayRegion(env, array, 0, 2, c_array);
 	
-    FUNC_WebPDemuxReleaseIterator(&iter);
+    WebPDemuxReleaseIterator(&iter);
 	return array;
 }
 
@@ -177,14 +106,14 @@ Java_com_mycompany_myndkapp_HelloJni_nativeDecodeFrame(JNIEnv* env, jclass clazz
     WebPAnim* a = (WebPAnim*)handle;
 
     WebPIterator iter;
-    if (!FUNC_WebPDemuxGetFrame(a->demux, frame, &iter))
+    if (!WebPDemuxGetFrame(a->demux, frame, &iter))
         return -1;
     int stride = iter.width * 4;
 
     uint8_t* dst = (*env)->GetDirectBufferAddress(env, buffer);
     size_t capacity = (*env)->GetDirectBufferCapacity(env, buffer);
 		
-    uint8_t* ptr = FUNC_WebPDecodeRGBAInto(
+    uint8_t* ptr = WebPDecodeRGBAInto(
         iter.fragment.bytes,
         iter.fragment.size,
         dst,
@@ -195,7 +124,7 @@ Java_com_mycompany_myndkapp_HelloJni_nativeDecodeFrame(JNIEnv* env, jclass clazz
 	char message[4096];
 	sprintf(message, "Frame=%d, W=%d, H=%d, Size=%zu, status = %s",
 			frame, iter.width, iter.height, capacity, (ptr) ? "SUCCESS" : "FAIL");
-    FUNC_WebPDemuxReleaseIterator(&iter);
+    WebPDemuxReleaseIterator(&iter);
 	
 	return (*env)->NewStringUTF(env, message);
 }
@@ -207,20 +136,20 @@ Java_com_mycompany_myndkapp_HelloJni_nativeFindFrameAtTime(
 {
     WebPAnim* a = (WebPAnim*)handle;
 
-    int frameCount = FUNC_WebPDemuxGetI(a->demux, WEBP_FF_FRAME_COUNT);
+    int frameCount = WebPDemuxGetI(a->demux, WEBP_FF_FRAME_COUNT);
 
     WebPIterator iter;
 	int f;
 	int endTime = 0;
     for (f = 1; f <= frameCount; f++) {
 
-        if (!FUNC_WebPDemuxGetFrame(a->demux, f, &iter))
+        if (!WebPDemuxGetFrame(a->demux, f, &iter))
             break;
 
         endTime += iter.duration;
 
         if (t_ms <= endTime) {
-            FUNC_WebPDemuxReleaseIterator(&iter);
+            WebPDemuxReleaseIterator(&iter);
             return f; // FOUND FRAME
         }
     }
@@ -234,8 +163,8 @@ Java_com_mycompany_myndkapp_HelloJni_nativeClose(JNIEnv* env, jclass clazz,
                                              jlong handle)
 {
     WebPAnim* a = (WebPAnim*)handle;
-    //FUNC_WebPAnimDecoderDelete(a->anim_decoder);
-    FUNC_WebPDemuxDelete(a->demux);
+    //WebPAnimDecoderDelete(a->anim_decoder);
+    WebPDemuxDelete(a->demux);
     free((void*)a->data.bytes);
     free(a);
 }

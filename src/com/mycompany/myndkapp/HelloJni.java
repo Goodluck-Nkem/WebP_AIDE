@@ -34,7 +34,6 @@ public class HelloJni extends Activity
 	private TextView textView;
 	private ImageView imageView;
 	private Button button, nextFrameBtn;
-	private boolean lib_succeed = false;
 	private WebPDrawable wd = null;
 	private int manual_frame = 0;
 
@@ -78,15 +77,7 @@ public class HelloJni extends Activity
 						manual_frame = 1;
 				}
 			});
-		
-		copy_asset(this, "libsharpyuv.so", "libsharpyuv.so");
-		copy_asset(this, "libwebp.so", "libwebp.so");
-		copy_asset(this, "libwebpdemux.so", "libwebpdemux.so");
-		lib_succeed = nativeInit(getFilesDir().getAbsolutePath() + "/libsharpyuv.so", 
-										 getFilesDir().getAbsolutePath() + "/libwebp.so",
-										 getFilesDir().getAbsolutePath() + "/libwebpdemux.so");
-		Toast.makeText(this, lib_succeed ? "nativeInit success" : "nativeInit failure", Toast.LENGTH_SHORT).show();
-    }
+	}
 
 	/* fun fact: this AIDE is sdk 24 */
 	private void openMediaFile()
@@ -111,7 +102,7 @@ public class HelloJni extends Activity
                 Uri uri = data.getData();
 				String displayName = getContentDisplayName(this, uri);
 				String imageInfoMsg = displayName;
-				if (lib_succeed && displayName.endsWith(".webp"))
+				if (displayName.endsWith(".webp"))
 				{
 					try
 					{
@@ -199,13 +190,10 @@ public class HelloJni extends Activity
 		if(wd != null)
 			wd.dispose();
 		wd = null;
-		nativeFini();
 	}
 	
 
     public native String stringFromJNI();
-	public static native boolean nativeInit(String sharpyuv, String webp, String webpdemux);
-	public static native void nativeFini();
 	public static native long nativeOpen(byte[] bytes); 
 	public static native int nativeGetFrameCount(long handle);
 	public static native int nativeGetFrameDelay(long handle, int frame);

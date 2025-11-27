@@ -1,26 +1,45 @@
-# Copyright (C) 2009 The Android Open Source Project
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
 LOCAL_PATH := $(call my-dir)
 
+# ==========================================================
+# libsharpyuv.so  (PREBUILT)
+# ==========================================================
+include $(CLEAR_VARS)
+LOCAL_MODULE := sharpyuv
+LOCAL_SRC_FILES := prebuilt/$(TARGET_ARCH_ABI)/libsharpyuv.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+# ==========================================================
+# libwebp.so  (PREBUILT)
+# ==========================================================
+include $(CLEAR_VARS)
+LOCAL_MODULE := webp
+LOCAL_SRC_FILES := prebuilt/$(TARGET_ARCH_ABI)/libwebp.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+# ==========================================================
+# libwebpdemux.so  (PREBUILT)
+# ==========================================================
+include $(CLEAR_VARS)
+LOCAL_MODULE := webpdemux
+LOCAL_SRC_FILES := prebuilt/$(TARGET_ARCH_ABI)/libwebpdemux.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+# ==========================================================
+# My JNI library built from Source
+# ==========================================================
 include $(CLEAR_VARS)
 
 LOCAL_MODULE    := hello-jni
 LOCAL_SRC_FILES := hello-jni.c
+
+LOCAL_LDLIBS := -llog
+
+# Link to the three prebuilt libraries
+LOCAL_SHARED_LIBRARIES := sharpyuv webp webpdemux
 
 ifeq ($(TARGET_ARCH_ABI),x86)
     LOCAL_CFLAGS += -ffast-math -mtune=atom -mssse3 -mfpmath=sse
 endif
 
 include $(BUILD_SHARED_LIBRARY)
+
