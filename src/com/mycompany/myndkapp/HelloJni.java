@@ -26,16 +26,18 @@ import android.widget.*;
 import java.io.*;
 import java.nio.*;
 import java.util.*;
+import android.graphics.*;
 
 
 public class HelloJni extends Activity
 {
 	private static final int REQUEST_OPEN_DOCUMENT = 100;
+	public LinearLayout parentLayout;
+	public ImageView imageView;
 	private TextView textView;
-	private ImageView imageView;
 	private Button button, nextFrameBtn;
-	private WebPDrawable wd = null;
-	private int manual_frame = 0;
+	private byte[] byteArray;
+	private WebPDrawable webpDrawable = null;
 
     /** Called when the activity is first created. */
     @Override
@@ -48,13 +50,14 @@ public class HelloJni extends Activity
          * function.
          */
 		setContentView(R.layout.main);
+		parentLayout = (LinearLayout)findViewById(R.id.parentLayout);
 		textView = (TextView)findViewById(R.id.textView);
 		button = (Button)findViewById(R.id.button);
 		nextFrameBtn = (Button)findViewById(R.id.nextFrameBtn);
 		imageView = (ImageView)findViewById(R.id.imageView);
 		copy_asset(this, "GIRL1.BMP", "GIRL1.BMP");
 		imageView.setImageURI(Uri.fromFile(new File(getFilesDir(), "GIRL1.BMP")));
-        textView.setText(stringFromJNI());
+        textView.setText("GIRL1 (BMP)");
 
 		button.setOnClickListener(new View.OnClickListener(){
 				@Override
@@ -68,13 +71,7 @@ public class HelloJni extends Activity
 				@Override
 				public void onClick(View v)
 				{
-					if(wd == null)
-						return;
-					wd.pause();
-					int totalFrames = wd.getFrameCount();
-					wd.seek(++manual_frame);
-					if(manual_frame >= totalFrames)
-						manual_frame = 1;
+					if(webpDrawable != null)webpDrawable.seekNext();
 				}
 			});
 	}
@@ -97,20 +94,27 @@ public class HelloJni extends Activity
 		{
             if (data != null)
 			{
-				if(wd != null)
-					wd.dispose();
                 Uri uri = data.getData();
 				String displayName = getContentDisplayName(this, uri);
 				String imageInfoMsg = displayName;
+				if(webpDrawable != null)
+				{
+					webpDrawable.dispose();
+					webpDrawable = null;
+				}
+				
 				if (displayName.endsWith(".webp"))
 				{
 					try
 					{
-						byte[] br = readBytes(this, uri);
-						wd = new WebPDrawable(this, br);
-						imageInfoMsg += "\nDuration_MS: " + wd.getAnimationDuration() + "\nMiB: " + (float)br.length / (1024f * 1024f) +"\nFrameCount: " + wd.getFrameCount();
-						imageView.setImageDrawable(wd);
-						//wd.play();
+						byteArray = readBytes(this, uri);
+						if((webpDrawable = new WebPDrawable(this, byteArray).validateDrawable()) != null){
+							imageInfoMsg += webpDrawable.getInfoString();
+							//webpDrawable.seekNext(); 
+							webpDrawable.play();
+							imageView.setImageDrawable(webpDrawable);
+						}
+						//imageView.setImageBitmap(bm);
 					}
 					catch (IOException e)
 					{}
@@ -186,28 +190,27 @@ public class HelloJni extends Activity
 	@Override
 	protected void onDestroy()
 	{
+		if(webpDrawable != null)
+		{
+			webpDrawable.dispose();
+			webpDrawable = null;
+		}
 		super.onDestroy();
-		if(wd != null)
-			wd.dispose();
-		wd = null;
 	}
+
+	/* w, h, fc, d */
+	public static final int WEBP_WIDTH =  0;
+	public static final int WEBP_HEIGHT = 1;
+	public static final int WEBP_FRAMECOUNT = 2;
+	public static final int WEBP_DURATION = 3;
 	
-
     public native String stringFromJNI();
-	public static native long nativeOpen(byte[] bytes); 
-	public static native int nativeGetFrameCount(long handle);
-	public static native int nativeGetFrameDelay(long handle, int frame);
-	public static native int[] nativeGetFrameDimension(long handle, int frame); 
-	public static native String nativeDecodeFrame(long handle, int frame, ByteBuffer buffer);
-	public static native int nativeFindFrameAtTime(long handle, int t_ms); 
-	public static native void nativeClose(long handle);
+	public static native long webpInit(byte[] bytes);
+	public static native int[] webpGetInfo(long handle); 
+	public static native int webpDecodeNext(long handle, Bitmap bitmap);
+	public static native int[] webpSeekTo(long handle, Bitmap bitmap, int t_ms); 
+	public static native void webpFini(long handle);
 
-
-    /* this is used to load the 'hello-jni' library on application
-     * startup. The library has already been unpacked into
-     * /data/data/com.example.hellojni/lib/libhello-jni.so at
-     * installation time by the package manager.
-     */
     static {
         System.loadLibrary("hello-jni");
     }

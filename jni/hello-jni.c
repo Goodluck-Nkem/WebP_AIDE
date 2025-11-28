@@ -6,191 +6,159 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <android/bitmap.h>
 
 #include "webp/demux.h" 
 #include "webp/decode.h"
-#include "webp/encode.h"
 
 typedef struct {
-    WebPData data;
-    WebPDemuxer* demux;
-	// WebPAnimDecoder* anim_decoder;
-	// int canvas_width, canvas_height;
+	WebPData data;
+	WebPAnimDecoder* anim_decoder;
+	uint8_t* frame_rgba;
+	/* keep these 4 sections together */
+	uint32_t canvas_width, canvas_height, frame_count, duration_ms;
+	int time_stamp, current_frame;
 } WebPAnim;
 
+static int get_duration(WebPAnim* a) {
+	WebPIterator iter;
+	WebPDemuxer* demux;
+	a->duration_ms = 0;
+	
+	// -------- Prepare generic demuxer --------
+	if(!(demux = WebPDemux(&a->data)))
+		return 0;
+	
+	if (WebPDemuxGetFrame(demux, 1, &iter)) {
+		do {
+            if (iter.duration < 10)
+				a->duration_ms = 10;
+			else
+				a->duration_ms += iter.duration;
+		} while (WebPDemuxNextFrame(&iter));
+
+		WebPDemuxReleaseIterator(&iter);
+	}
+	
+	WebPDemuxDelete(demux);
+	return a->duration_ms;
+}
+
+/* init resources */
 JNIEXPORT jlong JNICALL
-Java_com_mycompany_myndkapp_HelloJni_nativeOpen(JNIEnv* env, jclass clazz,
-                                            jbyteArray bytes)
+Java_com_mycompany_myndkapp_HelloJni_webpInit(JNIEnv* env, jclass clazz,
+		jbyteArray bytes)
 {
-    WebPAnim* anim = calloc(1, sizeof(WebPAnim));
-    jsize size = (*env)->GetArrayLength(env, bytes);
+	WebPAnim* anim = calloc(1, sizeof(WebPAnim));
+	jsize size = (*env)->GetArrayLength(env, bytes);
 
-    anim->data.bytes = malloc(size);
-    anim->data.size = size;
+	anim->data.bytes = malloc(size);
+	anim->data.size = size;
 
-    (*env)->GetByteArrayRegion(env, bytes, 0, size, (jbyte*)anim->data.bytes);
+	/* copy bytes to C memory, then load the duration field */
+	(*env)->GetByteArrayRegion(env, bytes, 0, size, (jbyte*)anim->data.bytes);
+	if(!get_duration(anim))
+		goto webpInitError;
 
-    anim->demux = WebPDemuxInternal(&anim->data, 0, NULL, WEBP_DEMUX_ABI_VERSION);
-	
-    // -------- Prepare demuxer --------
-	/*
+	// -------- Prepare animation demuxer --------
+	WebPAnimDecoderOptions dec_opts;
+	WebPAnimDecoderOptionsInit(&dec_opts);
+	if(!(anim->anim_decoder = WebPAnimDecoderNew(&anim->data, &dec_opts)))
+		goto webpInitError;
 
-    WebPAnimDecoderOptions dec_opts;
-    WebPAnimDecoderOptionsInit(&dec_opts);
-
-    anim->anim_decoder = WebPAnimDecoderNew(&anim->data, &dec_opts);
-
-    WebPAnimInfo info;
-    if (anim_decoder) {
-    	if (!WebPAnimDecoderGetInfo(anim_decoder, &info)) {
-        	WebPAnimDecoderDelete(anim->anim_decoder);
-        	free(anim->data.bytes);
-			anim->data.bytes = NULL;
-    	}
-    	anim->canvas_width  = info.canvas_width;
-    	anim->canvas_height = info.canvas_height;
-    }
-	else{
-        free(anim->data.bytes);
-		anim->data.bytes = NULL;
+	/* Get WebP info */
+	WebPAnimInfo info;
+	if (!WebPAnimDecoderGetInfo(anim->anim_decoder, &info)) {
+		WebPAnimDecoderDelete(anim->anim_decoder);
+		goto webpInitError;
 	}
-	*/
-    return (jlong)anim;
+	
+	/* success */
+	anim->canvas_width  = info.canvas_width;
+	anim->canvas_height = info.canvas_height;
+	anim->frame_count = info.frame_count;
+	return (jlong)anim;
+
+	/* failure */
+webpInitError:
+	free(anim->data.bytes);
+	anim->data.bytes = NULL;
+	free(anim);
+	return 0;
 }
 
-JNIEXPORT jint JNICALL
-Java_com_mycompany_myndkapp_HelloJni_nativeGetFrameCount(JNIEnv* env, jclass clazz,
-                                                     jlong handle) {
-    WebPAnim* a = (WebPAnim*)handle;
-    return WebPDemuxGetI(a->demux, WEBP_FF_FRAME_COUNT);
-}
-
-JNIEXPORT jint JNICALL
-Java_com_mycompany_myndkapp_HelloJni_nativeGetFrameDelay(JNIEnv* env, jclass clazz,
-                                                     jlong handle, jint frame)
-{
-    WebPAnim* a = (WebPAnim*)handle;
-
-    WebPIterator iter;
-    if (!WebPDemuxGetFrame(a->demux, frame, &iter))
-        return -1;
-
-    int delay = iter.duration;
-    WebPDemuxReleaseIterator(&iter);
-    return delay;
-}
-
+/* returns width, height, framecount and duration contiguously */
 JNIEXPORT jintArray JNICALL
-Java_com_mycompany_myndkapp_HelloJni_nativeGetFrameDimension(JNIEnv* env, jclass clazz,
-                                                   jlong handle, jint frame)
+Java_com_mycompany_myndkapp_HelloJni_webpGetInfo(JNIEnv* env, jclass clazz, jlong handle)
 {
-    WebPAnim* a = (WebPAnim*)handle;
+	WebPAnim* a = (WebPAnim*)handle;
+	jintArray infoArray = (*env)->NewIntArray(env, 4);
+	/* w, h, fc, d */
+	(*env)->SetIntArrayRegion(env, infoArray, 0, 4, &a->canvas_width);
+	return infoArray;
+}
 
-    WebPIterator iter;
-    if (!WebPDemuxGetFrame(a->demux, frame, &iter))
-        return NULL;
-
-	jintArray array = (*env)->NewIntArray(env, 2);
-	int c_array[2] = {iter.width, iter.height};
-	(*env)->SetIntArrayRegion(env, array, 0, 2, c_array);
+/* decodes Next Frame, returns its duration */
+JNIEXPORT int JNICALL
+Java_com_mycompany_myndkapp_HelloJni_webpDecodeNext(JNIEnv* env, jclass clazz, jlong handle, jobject bitmap)
+{
+	WebPAnim* a = (WebPAnim*)handle;
 	
-    WebPDemuxReleaseIterator(&iter);
-	return array;
-}
-
-JNIEXPORT jstring JNICALL
-Java_com_mycompany_myndkapp_HelloJni_nativeDecodeFrame(JNIEnv* env, jclass clazz,
-                                                   jlong handle, jint frame,
-                                                   jobject buffer)
-{
-    WebPAnim* a = (WebPAnim*)handle;
-
-    WebPIterator iter;
-    if (!WebPDemuxGetFrame(a->demux, frame, &iter))
-        return -1;
-    int stride = iter.width * 4;
-
-    uint8_t* dst = (*env)->GetDirectBufferAddress(env, buffer);
-    size_t capacity = (*env)->GetDirectBufferCapacity(env, buffer);
-		
-    uint8_t* ptr = WebPDecodeRGBAInto(
-        iter.fragment.bytes,
-        iter.fragment.size,
-        dst,
-        capacity,
-        stride
-    );
-
-	char message[4096];
-	sprintf(message, "Frame=%d, W=%d, H=%d, Size=%zu, status = %s",
-			frame, iter.width, iter.height, capacity, (ptr) ? "SUCCESS" : "FAIL");
-    WebPDemuxReleaseIterator(&iter);
-	
-	return (*env)->NewStringUTF(env, message);
-}
-
-JNIEXPORT jint JNICALL
-Java_com_mycompany_myndkapp_HelloJni_nativeFindFrameAtTime(
-        JNIEnv* env, jclass clazz,
-        jlong handle, jint t_ms)
-{
-    WebPAnim* a = (WebPAnim*)handle;
-
-    int frameCount = WebPDemuxGetI(a->demux, WEBP_FF_FRAME_COUNT);
-
-    WebPIterator iter;
-	int f;
-	int endTime = 0;
-    for (f = 1; f <= frameCount; f++) {
-
-        if (!WebPDemuxGetFrame(a->demux, f, &iter))
-            break;
-
-        endTime += iter.duration;
-
-        if (t_ms <= endTime) {
-            WebPDemuxReleaseIterator(&iter);
-            return f; // FOUND FRAME
-        }
-    }
-
-    // If timestamp exceeds total duration, return last frame
-    return frameCount;
-}
-
-JNIEXPORT void JNICALL
-Java_com_mycompany_myndkapp_HelloJni_nativeClose(JNIEnv* env, jclass clazz,
-                                             jlong handle)
-{
-    WebPAnim* a = (WebPAnim*)handle;
-    //WebPAnimDecoderDelete(a->anim_decoder);
-    WebPDemuxDelete(a->demux);
-    free((void*)a->data.bytes);
-    free(a);
-}
-
-
-/* stringFromJNI */
-JNIEXPORT jstring JNICALL Java_com_mycompany_myndkapp_HelloJni_stringFromJNI(JNIEnv* env, jobject thiz)
-{
-	char text[4096];
-	chdir("/sdcard/Android/data/com.mycompany.myndkapp/files");
-	mkdir("external_dir", 0666);
-	chdir("/data/data/com.mycompany.myndkapp");
-	mkdir("internal_dir", 0666);
-	system("date > buf.txt");
-	// system("env HOME=/data/data/com.mycompany.myndkapp >> buf.txt && ls ${HOME} >> buf.txt");
-	system("wc /sdcard/Android/data/com.mycompany.myndkapp/files/ls.txt >> buf.txt");
-	system("pwd >> buf.txt && cat buf.txt >> /sdcard/Android/data/com.mycompany.myndkapp/files/ls.txt");
-	int fd = open("buf.txt", O_RDONLY);
-	if(-1 == fd)
-		strcpy(text, "Hello from JNI built on AIDE !\nFile open failed!");
-	else
+	int previous_ts = a->time_stamp;
+	if(WebPAnimDecoderHasMoreFrames(a->anim_decoder) && 
+		WebPAnimDecoderGetNext(a->anim_decoder, &a->frame_rgba, &a->time_stamp))
 	{
-		int br = read(fd, text, sizeof(text) - 1);
-		text[br] = '\0';
-		close(fd);
+		void* dst;
+		AndroidBitmap_lockPixels(env, bitmap, &dst);
+		memcpy(dst, a->frame_rgba, (a->canvas_width * a->canvas_height * 4));
+		AndroidBitmap_unlockPixels(env, bitmap);
+		a->current_frame++;
 	}
-	return (*env)->NewStringUTF(env, text);
+	
+	return (a->time_stamp - previous_ts);
+}
+
+/* seeks to the timestamp, returns the frame and duration contiguously */
+JNIEXPORT jintArray JNICALL
+Java_com_mycompany_myndkapp_HelloJni_webpSeekTo(JNIEnv* env, jclass clazz, jlong handle, jobject bitmap, jint t_ms)
+{
+	WebPAnim* a = (WebPAnim*)handle;
+
+	/* first reset, then iterate until target frame */
+	WebPAnimDecoderReset(a->anim_decoder);
+	a->current_frame = 0;
+	a->time_stamp = 0;
+	int previous_ts = 0;
+	while(WebPAnimDecoderHasMoreFrames(a->anim_decoder) && 
+		WebPAnimDecoderGetNext(a->anim_decoder, &a->frame_rgba, &a->time_stamp))
+	{
+		a->current_frame++;
+		if(a->time_stamp >= t_ms)
+		{
+			void* dst;
+			AndroidBitmap_lockPixels(env, bitmap, &dst);
+			memcpy(dst, a->frame_rgba, (a->canvas_width * a->canvas_height * 4));
+			AndroidBitmap_unlockPixels(env, bitmap);
+			break;
+		}
+		previous_ts = a->time_stamp;
+	}
+
+	/* return frame info */
+	jintArray frameInfo = (*env)->NewIntArray(env, 2);
+	int c_array[2] = {a->current_frame, a->time_stamp - previous_ts};
+	(*env)->SetIntArrayRegion(env, frameInfo, 0, 2, c_array);
+	return frameInfo;
+}
+
+/* release resources */
+JNIEXPORT void JNICALL
+Java_com_mycompany_myndkapp_HelloJni_webpFini(JNIEnv* env, jclass clazz, jlong handle)
+{
+	WebPAnim* a = (WebPAnim*)handle;
+	WebPAnimDecoderDelete(a->anim_decoder);
+	free((void*)a->data.bytes);
+	a->data.bytes = NULL;
+	free(a);
 }
 
