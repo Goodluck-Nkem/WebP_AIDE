@@ -78,7 +78,7 @@ avifErrorCreateDec:
 
 /* returns anim info which is "framecount" and "total_duration" contiguously */
 JNIEXPORT jintArray JNICALL
-Java_com_mycompany_myndkapp_HelloJni_avifGetInfo(JNIEnv* env, jclass clazz, jlong handle)
+Java_com_mycompany_myndkapp_HelloJni_avifGetCommonInfo(JNIEnv* env, jclass clazz, jlong handle)
 {
 	AVIFAnim* a = (AVIFAnim*)handle;
 	jintArray infoArray = (*env)->NewIntArray(env, 2); /* fc, d */
@@ -89,7 +89,7 @@ Java_com_mycompany_myndkapp_HelloJni_avifGetInfo(JNIEnv* env, jclass clazz, jlon
 
 /* decodes Next Frame, returns its frame info which is "width", "height", "frame_number" and "duration" contiguously */
 JNIEXPORT jintArray JNICALL
-Java_com_mycompany_myndkapp_HelloJni_avifDecodeNext(JNIEnv* env, jclass clazz, jlong handle, jobject bitmap)
+Java_com_mycompany_myndkapp_HelloJni_avifDecodeNext(JNIEnv* env, jclass clazz, jlong handle)
 {
 	AVIFAnim* a = (AVIFAnim*)handle;
 	
@@ -110,12 +110,6 @@ Java_com_mycompany_myndkapp_HelloJni_avifDecodeNext(JNIEnv* env, jclass clazz, j
 	avifRGBImageAllocatePixels(a->rgb);
 	avifImageYUVToRGB(a->dec->image, a->rgb);
 	
-	/* copy pixels to bitmap */
-	void* dst;
-	AndroidBitmap_lockPixels(env, bitmap, &dst);
-	memcpy(dst, a->rgb->pixels, (a->rgb->width * a->rgb->height * 4));
-	AndroidBitmap_unlockPixels(env, bitmap);
-
 	/* return frame info */
 	jintArray frameInfo = (*env)->NewIntArray(env, 4); /* w, h, fn, d */
 	int c_array[4] = {a->rgb->width, a->rgb->height, a->currentFrameNumber, (int)(a->frame_duration_sec[a->currentFrameNumber - 1] * 1000)};  
@@ -124,9 +118,9 @@ Java_com_mycompany_myndkapp_HelloJni_avifDecodeNext(JNIEnv* env, jclass clazz, j
 }
 
 
-/* seeks to the timestamp, rreturns its frame info which is "width", "height", "frame_number" and "duration" contiguously */
+/* seeks to the timestamp, returns its frame info which is "width", "height", "frame_number" and "duration" contiguously */
 JNIEXPORT jintArray JNICALL
-Java_com_mycompany_myndkapp_HelloJni_avifSeekTo(JNIEnv* env, jclass clazz, jlong handle, jobject bitmap, jint t_ms)
+Java_com_mycompany_myndkapp_HelloJni_avifSeekTo(JNIEnv* env, jclass clazz, jlong handle, jint t_ms)
 {
 	AVIFAnim* a = (AVIFAnim*)handle;
 
@@ -158,17 +152,23 @@ Java_com_mycompany_myndkapp_HelloJni_avifSeekTo(JNIEnv* env, jclass clazz, jlong
 	avifRGBImageAllocatePixels(a->rgb);
 	avifImageYUVToRGB(a->dec->image, a->rgb);
 
-	/* copy pixels to bitmap */
-	void* dst;
-	AndroidBitmap_lockPixels(env, bitmap, &dst);
-	memcpy(dst, a->rgb->pixels, (a->rgb->width * a->rgb->height * 4));
-	AndroidBitmap_unlockPixels(env, bitmap);
-
 	/* return frame info */
 	jintArray frameInfo = (*env)->NewIntArray(env, 4);
 	int c_array[4] = {a->rgb->width, a->rgb->height, targetFrameIndex + 1, (int)(a->frame_duration_sec[i] * 1000)};  
 	(*env)->SetIntArrayRegion(env, frameInfo, 0, 4, c_array);
 	return frameInfo;
+}
+
+/* apply the recently decoded pixels to a bitmap */
+JNIEXPORT void JNICALL
+Java_com_mycompany_myndkapp_HelloJni_avifApplyDecodedPixels(JNIEnv* env, jclass clazz, jlong handle, jobject bitmap)
+{
+	AVIFAnim* a = (AVIFAnim*)handle;
+	/* copy pixels to bitmap */
+	void* dst;
+	AndroidBitmap_lockPixels(env, bitmap, &dst);
+	memcpy(dst, a->rgb->pixels, (a->rgb->width * a->rgb->height * 4));
+	AndroidBitmap_unlockPixels(env, bitmap);
 }
 
 /* release resources */

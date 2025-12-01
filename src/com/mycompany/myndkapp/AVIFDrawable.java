@@ -6,49 +6,44 @@ import android.net.*;
 import android.os.*;
 import android.util.*;
 
-public class WebPDrawable extends Drawable implements Runnable
+public class AVIFDrawable extends Drawable implements Runnable
 {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
-	private int frameDuration = 10;
-	private int[] WebpInfo = new int[]{0, 0, 0, 0};
+	private int[] AVIF_frameInfo = new int[]{0, 0, 0, 0}; /* width, height, frameNumber, duration */
+	private int[] AVIF_commonInfo = new int[]{0, 0}; /* framecount, total_duration */
 
     private long handle = 0;
 	private HelloJni activityContext;
 
-    private int currentFrame = 1;
     private boolean playing = false;
 
     private Bitmap bitmap = null;
 
-    public WebPDrawable(HelloJni activityContext, Uri uri)
+    public AVIFDrawable(HelloJni activityContext, Uri uri)
 	{
 		this.activityContext = activityContext;
 		try{
 			ParcelFileDescriptor pfd = activityContext.getContentResolver().openFileDescriptor(uri, "r");
-			if (pfd != null && 0 != (handle = HelloJni.webpInit(pfd.getFd())))
+			if (pfd != null && 0 != (handle = HelloJni.avifInit(pfd.getFd())))
 			{
-				WebpInfo = HelloJni.webpGetInfo(handle);
-				bitmap = Bitmap.createBitmap(
-					WebpInfo[HelloJni.WEBP_WIDTH], WebpInfo[HelloJni.WEBP_HEIGHT], Bitmap.Config.ARGB_8888);
-				Log.i("WEBP_INFO", getInfoString());
+				AVIF_commonInfo = HelloJni.avifGetCommonInfo(handle);
+				Log.i("AVIF_INFO", getInfoString());
 			}
 			pfd.close();
-		}catch(Exception e){Log.e("WEBP_ERROR", e.toString());}
+		}catch(Exception e){Log.e("AVIF_ERROR", e.toString());}
     }
 
-	public WebPDrawable validateDrawable()
+	public AVIFDrawable validateDrawable()
 	{
 		return handle == 0 ? null : this;
 	}
-	
+
 	public String getInfoString()
 	{
 		return   
-			"\nWidth = " + WebpInfo[HelloJni.WEBP_WIDTH] + 
-			", Height = " + WebpInfo[HelloJni.WEBP_HEIGHT] + 
-			"\nFrameCount = " + WebpInfo[HelloJni.WEBP_FRAMECOUNT] + 
-			"\nDuration = " + WebpInfo[HelloJni.WEBP_DURATION] + " ms";
+			"\nFrameCount = " + AVIF_commonInfo[HelloJni.AVIF_TOTALCOUNT] + 
+			"\nDuration = " + AVIF_commonInfo[HelloJni.AVIF_DURATION] + " ms";
 	}
 
     @Override
@@ -60,21 +55,21 @@ public class WebPDrawable extends Drawable implements Runnable
 	@Override
 	public int getIntrinsicWidth()
 	{
-		return bitmap.getWidth();
+		return bitmap != null ? bitmap.getWidth() : 0;
 	}
 
 	@Override
 	public int getIntrinsicHeight()
 	{
-		return bitmap.getHeight();
+		return bitmap != null ? bitmap.getHeight() : 0;
 	}
-	
+
     @Override
     public void run()
 	{
         if (!playing) return;
         seekNext();
-        handler.postDelayed(this, frameDuration);
+        handler.postDelayed(this, AVIF_frameInfo[HelloJni.AVIF_FRAMEDURATION]);
     }
 
     public void play()
@@ -91,24 +86,30 @@ public class WebPDrawable extends Drawable implements Runnable
 
     public void seekNext()
 	{
-		frameDuration = HelloJni.webpDecodeNext(handle, bitmap);
-        if (currentFrame < WebpInfo[HelloJni.WEBP_FRAMECOUNT]) 
-			currentFrame++;
+		AVIF_frameInfo = HelloJni.avifDecodeNext(handle);
+		bitmap = Bitmap.createBitmap(
+			AVIF_frameInfo[HelloJni.AVIF_FRAMEWIDTH], 
+			AVIF_frameInfo[HelloJni.AVIF_FRAMEHEIGHT], 
+			Bitmap.Config.ARGB_8888);
+		HelloJni.avifApplyDecodedPixels(handle, bitmap);
         invalidateSelf();
     }
 
 	public void seekToTimeMs(int t_ms)
 	{
-		int[] seekDetails = HelloJni.webpSeekTo(handle, bitmap, t_ms);
-		currentFrame = seekDetails[0];
-		frameDuration = seekDetails[1];
+		AVIF_frameInfo = HelloJni.avifSeekTo(handle, t_ms);
+		bitmap = Bitmap.createBitmap(
+			AVIF_frameInfo[HelloJni.AVIF_FRAMEWIDTH], 
+			AVIF_frameInfo[HelloJni.AVIF_FRAMEHEIGHT], 
+			Bitmap.Config.ARGB_8888);
+		HelloJni.avifApplyDecodedPixels(handle, bitmap);
         invalidateSelf();
 	}
 
 	public void dispose()
 	{
 		pause();
-		HelloJni.webpFini(handle);
+		HelloJni.avifFini(handle);
 	}
 
 	@Override
@@ -123,13 +124,13 @@ public class WebPDrawable extends Drawable implements Runnable
 
 
     public int getFrameCount()
-	{ return WebpInfo[HelloJni.WEBP_FRAMECOUNT]; }
+	{ return AVIF_commonInfo[HelloJni.AVIF_TOTALCOUNT]; }
     public int getTotalAnimationDuration()
-	{ return WebpInfo[HelloJni.WEBP_DURATION]; }
+	{ return AVIF_commonInfo[HelloJni.AVIF_DURATION]; }
 	
     public int getCurrentFrame()
-	{ return currentFrame; }
+	{ return AVIF_frameInfo[HelloJni.AVIF_FRAMENUMBER]; }
     public int getCurrentFrameDuration()
-	{ return frameDuration; }
+	{ return AVIF_frameInfo[HelloJni.AVIF_FRAMEDURATION]; }
 }
 

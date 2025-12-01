@@ -37,6 +37,7 @@ public class HelloJni extends Activity
 	private TextView textView;
 	private Button button, nextFrameBtn;
 	private WebPDrawable webpDrawable = null;
+	private AVIFDrawable avifDrawable = null;
 
     /** Called when the activity is first created. */
     @Override
@@ -44,10 +45,6 @@ public class HelloJni extends Activity
     {
         super.onCreate(savedInstanceState);
 
-        /* Create a TextView and set its content.
-         * the text is retrieved by calling a native
-         * function.
-         */
 		setContentView(R.layout.main);
 		parentLayout = (LinearLayout)findViewById(R.id.parentLayout);
 		textView = (TextView)findViewById(R.id.textView);
@@ -71,6 +68,7 @@ public class HelloJni extends Activity
 				public void onClick(View v)
 				{
 					if(webpDrawable != null)webpDrawable.seekNext();
+					if(avifDrawable != null)avifDrawable.seekNext();
 				}
 			});
 	}
@@ -96,10 +94,16 @@ public class HelloJni extends Activity
                 Uri uri = data.getData();
 				String displayName = getContentDisplayName(this, uri);
 				String imageInfoMsg = displayName;
+				
 				if(webpDrawable != null)
 				{
 					webpDrawable.dispose();
 					webpDrawable = null;
+				}
+				if(avifDrawable != null)
+				{
+					avifDrawable.dispose();
+					avifDrawable = null;
 				}
 				
 				if (displayName.endsWith(".webp"))
@@ -107,11 +111,21 @@ public class HelloJni extends Activity
 					if((webpDrawable = new WebPDrawable(this, uri).validateDrawable()) != null)
 					{
 						imageInfoMsg += webpDrawable.getInfoString();
-						//webpDrawable.seekNext(); 
 						webpDrawable.play();
 						imageView.setImageDrawable(webpDrawable);
 					}else{
 						imageInfoMsg += "\nError:: Could not Access WebP";
+					}
+				}
+				else if (displayName.endsWith(".avif"))
+				{
+					if((avifDrawable = new AVIFDrawable(this, uri).validateDrawable()) != null)
+					{
+						imageInfoMsg += avifDrawable.getInfoString();
+						avifDrawable.play();
+						imageView.setImageDrawable(avifDrawable);
+					}else{
+						imageInfoMsg += "\nError:: Could not Access AVIF";
 					}
 				}
 				else
@@ -119,24 +133,6 @@ public class HelloJni extends Activity
 				textView.setText(imageInfoMsg);
             }
         }
-	}
-
-	public static byte[] readBytes(Context context, Uri uri) throws IOException
-	{
-		InputStream inputStream = context.getContentResolver().openInputStream(uri);
-		if (inputStream == null) return null;
-
-		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-
-		byte[] data = new byte[8192];
-		int n;
-		while ((n = inputStream.read(data)) != -1)
-		{
-			buffer.write(data, 0, n);
-		}
-
-		inputStream.close();
-		return buffer.toByteArray();
 	}
 
 	public static String getContentDisplayName(Context context, Uri uri)
@@ -190,6 +186,11 @@ public class HelloJni extends Activity
 			webpDrawable.dispose();
 			webpDrawable = null;
 		}
+		if(avifDrawable != null)
+		{
+			avifDrawable.dispose();
+			avifDrawable = null;
+		}
 		super.onDestroy();
 	}
 
@@ -199,7 +200,7 @@ public class HelloJni extends Activity
 	public static final int WEBP_FRAMECOUNT = 2;
 	public static final int WEBP_DURATION = 3;
 	
-	public static final int AVIF_FRAMECOUNT =  0;
+	public static final int AVIF_TOTALCOUNT =  0;
 	public static final int AVIF_DURATION = 1;
 	
 	public static final int AVIF_FRAMEWIDTH =  0;
@@ -218,14 +219,14 @@ public class HelloJni extends Activity
 	
 	/* AVIF native methods */
 	public static native long avifInit(int fd);
-	public static native int[] avifGetInfo(long handle); /* fc, d */
-	public static native int[] avifDecodeNext(long handle, Bitmap bitmap); /* w, h, fn, d */
-	public static native int[] avifSeekTo(long handle, Bitmap bitmap, int t_ms); /* w, h, fn, d */
+	public static native int[] avifGetCommonInfo(long handle); /* fc, d */
+	public static native int[] avifDecodeNext(long handle); /* w, h, fn, d */
+	public static native int[] avifSeekTo(long handle, int t_ms); /* w, h, fn, d */
+	public static native void avifApplyDecodedPixels(long handle, Bitmap bitmap); 
 	public static native void avifFini(long handle);
 
     static {
         System.loadLibrary("hello-jni");
     }
 }
-
 
