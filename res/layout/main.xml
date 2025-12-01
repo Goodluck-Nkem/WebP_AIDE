@@ -14,24 +14,49 @@
 		android:layout_gravity="center" 
 		android:gravity="center"
 		/>
-
-	<Button
-		android:id="@+id/button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+	
+	<LinearLayout
+		android:orientation="horizontal"
 		android:layout_gravity="center"
-        android:textSize="10sp"
-        android:text="Select File"
-	/>
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content">
 
-	<Button
-		android:id="@+id/nextFrameBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+		<Button
+			android:id="@+id/selectFileBtn"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="center"
+			android:textSize="10sp"
+			android:text="Select File"/>
+
+		<Button
+			android:id="@+id/playPauseBtn"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="center"
+			android:textSize="10sp"
+			android:text="Play/Pause"/>
+
+		<Button
+			android:id="@+id/nextFrameBtn"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="center"
+			android:textSize="10sp"
+			android:text="Next"/>
+		
+	</LinearLayout>
+
+	<EditText
+		android:id="@+id/seekEdit"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
 		android:layout_gravity="center"
-        android:textSize="10sp"
-        android:text="Next"
-	/>
+		android:hint="Enter ms"
+		android:inputType="number"
+		android:imeOptions="actionDone|flagNoExtractUi"
+		android:singleLine="true"
+		android:textSize="10sp"/>
 	
     <TextView
         android:id="@+id/textView"

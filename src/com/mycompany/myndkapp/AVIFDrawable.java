@@ -42,6 +42,7 @@ public class AVIFDrawable extends Drawable implements Runnable
 	public String getInfoString()
 	{
 		return   
+			activityContext.getCurrentMediaDisplayName() +
 			"\nFrameCount = " + AVIF_commonInfo[HelloJni.AVIF_TOTALCOUNT] + 
 			"\nDuration = " + AVIF_commonInfo[HelloJni.AVIF_DURATION] + " ms";
 	}
@@ -50,6 +51,7 @@ public class AVIFDrawable extends Drawable implements Runnable
     public void draw(Canvas canvas)
 	{
         canvas.drawBitmap(bitmap, null, getBounds(), paint);
+		activityContext.textView.setText(getInfoString() + "\nFrame: " + AVIF_frameInfo[HelloJni.AVIF_FRAMENUMBER]); 
     }
 
 	@Override
@@ -84,6 +86,11 @@ public class AVIFDrawable extends Drawable implements Runnable
         playing = false;
     }
 
+	public boolean isPlaying()
+	{
+		return playing;
+	}
+	
     public void seekNext()
 	{
 		AVIF_frameInfo = HelloJni.avifDecodeNext(handle);

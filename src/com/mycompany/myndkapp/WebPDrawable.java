@@ -44,7 +44,8 @@ public class WebPDrawable extends Drawable implements Runnable
 	
 	public String getInfoString()
 	{
-		return   
+		return  
+			activityContext.getCurrentMediaDisplayName() +
 			"\nWidth = " + WebpInfo[HelloJni.WEBP_WIDTH] + 
 			", Height = " + WebpInfo[HelloJni.WEBP_HEIGHT] + 
 			"\nFrameCount = " + WebpInfo[HelloJni.WEBP_FRAMECOUNT] + 
@@ -55,6 +56,7 @@ public class WebPDrawable extends Drawable implements Runnable
     public void draw(Canvas canvas)
 	{
         canvas.drawBitmap(bitmap, null, getBounds(), paint);
+		activityContext.textView.setText(getInfoString() + "\nFrame: " + currentFrame); 
     }
 
 	@Override
@@ -88,6 +90,11 @@ public class WebPDrawable extends Drawable implements Runnable
 	{
         playing = false;
     }
+	
+	public boolean isPlaying()
+	{
+		return playing;
+	}
 
     public void seekNext()
 	{

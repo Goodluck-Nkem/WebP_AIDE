@@ -112,7 +112,8 @@ Java_com_mycompany_myndkapp_HelloJni_avifDecodeNext(JNIEnv* env, jclass clazz, j
 	
 	/* return frame info */
 	jintArray frameInfo = (*env)->NewIntArray(env, 4); /* w, h, fn, d */
-	int c_array[4] = {a->rgb->width, a->rgb->height, a->currentFrameNumber, (int)(a->frame_duration_sec[a->currentFrameNumber - 1] * 1000)};  
+	int c_array[4] = {a->rgb->width, a->rgb->height, a->currentFrameNumber, 
+						(int)(a->frame_duration_sec[a->currentFrameNumber - 1] * 1000)};  
 	(*env)->SetIntArrayRegion(env, frameInfo, 0, 4, c_array);
 	return frameInfo;
 }
@@ -145,6 +146,7 @@ Java_com_mycompany_myndkapp_HelloJni_avifSeekTo(JNIEnv* env, jclass clazz, jlong
     // Decode target frame
     avifDecoderReset(a->dec);
     avifDecoderNthImage(a->dec, targetFrameIndex);
+	a->currentFrameNumber = targetFrameIndex + 1;
 	
 	/* get the RGBA pixels */
     avifRGBImageSetDefaults(a->rgb, a->dec->image);
@@ -154,7 +156,8 @@ Java_com_mycompany_myndkapp_HelloJni_avifSeekTo(JNIEnv* env, jclass clazz, jlong
 
 	/* return frame info */
 	jintArray frameInfo = (*env)->NewIntArray(env, 4);
-	int c_array[4] = {a->rgb->width, a->rgb->height, targetFrameIndex + 1, (int)(a->frame_duration_sec[i] * 1000)};  
+	int c_array[4] = {a->rgb->width, a->rgb->height, a->currentFrameNumber, 
+						(int)(a->frame_duration_sec[a->currentFrameNumber - 1] * 1000)};  
 	(*env)->SetIntArrayRegion(env, frameInfo, 0, 4, c_array);
 	return frameInfo;
 }
