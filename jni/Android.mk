@@ -25,17 +25,26 @@ LOCAL_SRC_FILES := prebuilt/$(TARGET_ARCH_ABI)/libwebpdemux.so
 include $(PREBUILT_SHARED_LIBRARY)
 
 # ==========================================================
+# libavif.so  (PREBUILT)
+# ==========================================================
+include $(CLEAR_VARS)
+LOCAL_MODULE := avif
+LOCAL_SRC_FILES := prebuilt/$(TARGET_ARCH_ABI)/libavif.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+# ==========================================================
 # My JNI library built from Source
 # ==========================================================
 include $(CLEAR_VARS)
 
 LOCAL_MODULE    := hello-jni
-LOCAL_SRC_FILES := hello-jni.c
+LOCAL_SRC_FILES := webp_native.c avif_native.c
 
+# Link to built-in system libraries
 LOCAL_LDLIBS := -llog -ljnigraphics
 
 # Link to the three prebuilt libraries
-LOCAL_SHARED_LIBRARIES := sharpyuv webp webpdemux
+LOCAL_SHARED_LIBRARIES := sharpyuv webp webpdemux avif
 
 ifeq ($(TARGET_ARCH_ABI),x86)
     LOCAL_CFLAGS += -ffast-math -mtune=atom -mssse3 -mfpmath=sse

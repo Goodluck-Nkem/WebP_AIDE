@@ -36,7 +36,6 @@ public class HelloJni extends Activity
 	public ImageView imageView;
 	private TextView textView;
 	private Button button, nextFrameBtn;
-	private byte[] byteArray;
 	private WebPDrawable webpDrawable = null;
 
     /** Called when the activity is first created. */
@@ -105,19 +104,15 @@ public class HelloJni extends Activity
 				
 				if (displayName.endsWith(".webp"))
 				{
-					try
+					if((webpDrawable = new WebPDrawable(this, uri).validateDrawable()) != null)
 					{
-						byteArray = readBytes(this, uri);
-						if((webpDrawable = new WebPDrawable(this, byteArray).validateDrawable()) != null){
-							imageInfoMsg += webpDrawable.getInfoString();
-							//webpDrawable.seekNext(); 
-							webpDrawable.play();
-							imageView.setImageDrawable(webpDrawable);
-						}
-						//imageView.setImageBitmap(bm);
+						imageInfoMsg += webpDrawable.getInfoString();
+						//webpDrawable.seekNext(); 
+						webpDrawable.play();
+						imageView.setImageDrawable(webpDrawable);
+					}else{
+						imageInfoMsg += "\nError:: Could not Access WebP";
 					}
-					catch (IOException e)
-					{}
 				}
 				else
 					imageView.setImageURI(uri);
@@ -204,14 +199,33 @@ public class HelloJni extends Activity
 	public static final int WEBP_FRAMECOUNT = 2;
 	public static final int WEBP_DURATION = 3;
 	
+	public static final int AVIF_FRAMECOUNT =  0;
+	public static final int AVIF_DURATION = 1;
+	
+	public static final int AVIF_FRAMEWIDTH =  0;
+	public static final int AVIF_FRAMEHEIGHT = 1;
+	public static final int AVIF_FRAMENUMBER = 2;
+	public static final int AVIF_FRAMEDURATION = 3;
+
     public native String stringFromJNI();
-	public static native long webpInit(byte[] bytes);
-	public static native int[] webpGetInfo(long handle); 
+	
+	/* WebP native methods */
+	public static native long webpInit(int fd);
+	public static native int[] webpGetInfo(long handle); /* w, h, fc, d */
 	public static native int webpDecodeNext(long handle, Bitmap bitmap);
 	public static native int[] webpSeekTo(long handle, Bitmap bitmap, int t_ms); 
 	public static native void webpFini(long handle);
+	
+	/* AVIF native methods */
+	public static native long avifInit(int fd);
+	public static native int[] avifGetInfo(long handle); /* fc, d */
+	public static native int[] avifDecodeNext(long handle, Bitmap bitmap); /* w, h, fn, d */
+	public static native int[] avifSeekTo(long handle, Bitmap bitmap, int t_ms); /* w, h, fn, d */
+	public static native void avifFini(long handle);
 
     static {
         System.loadLibrary("hello-jni");
     }
 }
+
+

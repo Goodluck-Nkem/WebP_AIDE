@@ -1,5 +1,4 @@
 #include <jni.h>
-#include <dlfcn.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -20,6 +19,20 @@ typedef struct {
 	int time_stamp, current_frame;
 } WebPAnim;
 
+// Load file into memory provided an FD
+static uint8_t *read_fd(int fd, size_t *file_size)
+{
+	/* assume the FD is already rewinded */
+    struct stat fd_stat;
+	fstat(fd, &fd_stat);
+	*file_size = fd_stat.st_size;
+    uint8_t *data = malloc(*file_size);
+    read(fd, data, *file_size);
+    return data; 
+	/* assume the FD provider will close the FD by itself when desired */
+}
+
+// get and store the WebP total duration
 static int get_duration(WebPAnim* a) {
 	WebPIterator iter;
 	WebPDemuxer* demux;
@@ -46,17 +59,12 @@ static int get_duration(WebPAnim* a) {
 
 /* init resources */
 JNIEXPORT jlong JNICALL
-Java_com_mycompany_myndkapp_HelloJni_webpInit(JNIEnv* env, jclass clazz,
-		jbyteArray bytes)
+Java_com_mycompany_myndkapp_HelloJni_webpInit(JNIEnv* env, jclass clazz, jint fd)
 {
 	WebPAnim* anim = calloc(1, sizeof(WebPAnim));
-	jsize size = (*env)->GetArrayLength(env, bytes);
-
-	anim->data.bytes = malloc(size);
-	anim->data.size = size;
-
+	
 	/* copy bytes to C memory, then load the duration field */
-	(*env)->GetByteArrayRegion(env, bytes, 0, size, (jbyte*)anim->data.bytes);
+	anim->data.bytes = read_fd(fd, &anim->data.size);
 	if(!get_duration(anim))
 		goto webpInitError;
 

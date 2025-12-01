@@ -1,13 +1,10 @@
 package com.mycompany.myndkapp;
 
-import android.app.*;
-import android.content.*;
 import android.graphics.*;
 import android.graphics.drawable.*;
+import android.net.*;
 import android.os.*;
 import android.util.*;
-import java.nio.*;
-import java.util.*;
 
 public class WebPDrawable extends Drawable implements Runnable
 {
@@ -16,7 +13,7 @@ public class WebPDrawable extends Drawable implements Runnable
 	private int frameDuration = 10;
 	private int[] WebpInfo = new int[]{0, 0, 0, 0};
 
-    private final long handle;
+    private long handle = 0;
 	private HelloJni activityContext;
 
     private int currentFrame = 1;
@@ -24,16 +21,20 @@ public class WebPDrawable extends Drawable implements Runnable
 
     private Bitmap bitmap = null;
 
-    public WebPDrawable(HelloJni activityContext, byte[] data)
+    public WebPDrawable(HelloJni activityContext, Uri uri)
 	{
 		this.activityContext = activityContext;
-        handle = HelloJni.webpInit(data);
-		if (0 == handle)
-			return;
-		WebpInfo = HelloJni.webpGetInfo(handle);
-        bitmap = Bitmap.createBitmap(
-			WebpInfo[HelloJni.WEBP_WIDTH], WebpInfo[HelloJni.WEBP_HEIGHT], Bitmap.Config.ARGB_8888);
-		Log.i("WEBP_INFO", getInfoString());
+		try{
+			ParcelFileDescriptor pfd = activityContext.getContentResolver().openFileDescriptor(uri, "r");
+			if (pfd != null && 0 != (handle = HelloJni.webpInit(pfd.getFd())))
+			{
+				WebpInfo = HelloJni.webpGetInfo(handle);
+				bitmap = Bitmap.createBitmap(
+					WebpInfo[HelloJni.WEBP_WIDTH], WebpInfo[HelloJni.WEBP_HEIGHT], Bitmap.Config.ARGB_8888);
+				Log.i("WEBP_INFO", getInfoString());
+			}
+			pfd.close();
+		}catch(Exception e){Log.e("WEBP_ERROR", e.toString());}
     }
 
 	public WebPDrawable validateDrawable()
